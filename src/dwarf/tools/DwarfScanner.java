@@ -464,8 +464,6 @@ public class DwarfScanner {
 
 	}
 
-	
-
 	private static void scanTags(DwarfRequestor requestor, DataSource data, LongFunction<Abbreviation> abbreviations) {
 		Stack<Abbreviation> tagStack = new Stack<>();
 
