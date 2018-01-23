@@ -3,7 +3,7 @@ package dwarf.tools;
 /**
  * Dwarf endian values.
  *
- * Source: http://www.dwarfstd.org/doc/DWARF5.pdf
+ * Source: http://www.dwarfstd.org/doc/DWARF4.pdf
  */
 public interface DwarfEndian {
 

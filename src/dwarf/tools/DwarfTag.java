@@ -3,7 +3,7 @@ package dwarf.tools;
 /**
  * Dwarf tag values.
  *
- * Source: http://www.dwarfstd.org/doc/DWARF5.pdf
+ * Source: http://www.dwarfstd.org/doc/DWARF4.pdf
  */
 public interface DwarfTag {
 
@@ -64,6 +64,9 @@ public interface DwarfTag {
 	int DW_TAG_imported_unit = 0x3d;
 	int DW_TAG_condition = 0x3f;
 	int DW_TAG_shared_type = 0x40;
+	int DW_TAG_type_unit = 0x41;
+	int DW_TAG_rvalue_reference_type = 0x42;
+	int DW_TAG_template_alias = 0x43;
 
 	int DW_TAG_lo_user = 0x4080;
 	int DW_TAG_hi_user = 0xffff;

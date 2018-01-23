@@ -21,11 +21,11 @@ public class DwarfScanner {
 
 	private static class Abbreviation {
 
-		private static Abbreviation find(Abbreviation[] a, long code) {
+		private static Abbreviation find(Abbreviation[] abbreviations, long code) {
 			Abbreviation abbreviation = null;
 
-			if (0 < code && code <= a.length) {
-				abbreviation = a[(int) code - 1];
+			if (0 < code && code <= abbreviations.length) {
+				abbreviation = abbreviations[(int) code - 1];
 
 				if (abbreviation.code != code) {
 					abbreviation = null;
@@ -40,42 +40,6 @@ public class DwarfScanner {
 		}
 
 		static LongFunction<Abbreviation> readFrom(DataSource data) {
-			if (data.hasRemaining()) {
-				return readFrom2(data.duplicate());
-			}
-
-			Map<Long, Abbreviation> abbreviations = new HashMap<>();
-
-			while (data.hasRemaining()) {
-				long code = data.getUDATA();
-
-				if (code == 0) {
-					break;
-				}
-
-				long tag = data.getUDATA();
-				boolean hasChildren = data.getU1() != 0;
-				Abbreviation entry = new Abbreviation(code, tag, hasChildren);
-
-				// attributes
-				for (;;) {
-					long name = data.getUDATA();
-					long form = data.getUDATA();
-
-					if (name != 0 && form != 0) {
-						entry.addAttribute(name, form, data);
-					} else {
-						break;
-					}
-				}
-
-				abbreviations.put(Long.valueOf(code), entry);
-			}
-
-			return code -> abbreviations.get(Long.valueOf(code));
-		}
-
-		static LongFunction<Abbreviation> readFrom2(DataSource data) {
 			List<Abbreviation> abbreviations = new ArrayList<>();
 
 			while (data.hasRemaining()) {
@@ -95,7 +59,7 @@ public class DwarfScanner {
 					long form = data.getUDATA();
 
 					if (name != 0 && form != 0) {
-						entry.addAttribute(name, form, data);
+						entry.addAttribute(name, form);
 					} else {
 						break;
 					}
@@ -106,7 +70,7 @@ public class DwarfScanner {
 
 			Abbreviation[] list = abbreviations.toArray(new Abbreviation[abbreviations.size()]);
 
-			Arrays.sort(list, Comparator.comparingLong(a -> a.code));
+			Arrays.sort(list, Comparator.comparingLong(abbreviation -> abbreviation.code));
 
 			return code -> find(list, code);
 		}
@@ -127,9 +91,9 @@ public class DwarfScanner {
 			this.tag = (int) tag;
 		}
 
-		private void addAttribute(long attribute, long form, DataSource data) {
+		private void addAttribute(long attribute, long form) {
 			if ((0 < attribute && attribute <= Integer.MAX_VALUE) && (0 < form && form <= Integer.MAX_VALUE)) {
-				attributes.add(AttributeReader.create((int) attribute, (int) form, data));
+				attributes.add(AttributeReader.create((int) attribute, (int) form));
 			} else {
 				throw new IllegalArgumentException("attribute=" + attribute + " form=" + form);
 			}
@@ -161,24 +125,6 @@ public class DwarfScanner {
 				long address = data.getAddress();
 
 				requestor.acceptAddress(attribute, address);
-			}
-
-		}
-
-		private static final class AddressIndex extends AttributeReader {
-
-			private final ToLongFunction<DataSource> indexAccessor;
-
-			AddressIndex(int attribute, ToLongFunction<DataSource> indexAccessor) {
-				super(attribute);
-				this.indexAccessor = indexAccessor;
-			}
-
-			@Override
-			void read(DwarfRequestor requestor, DataSource data) {
-				long index = indexAccessor.applyAsLong(data);
-
-				requestor.acceptAddressIndex(attribute, index);
 			}
 
 		}
@@ -243,10 +189,6 @@ public class DwarfScanner {
 
 		}
 
-		private static ToLongFunction<DataSource> constantAccessor(long value) {
-			return data -> value;
-		}
-
 		private static final class Flag extends AttributeReader {
 
 			private final ToLongFunction<DataSource> flagAccessor;
@@ -261,6 +203,22 @@ public class DwarfScanner {
 				boolean flag = flagAccessor.applyAsLong(data) != 0;
 
 				requestor.acceptFlag(attribute, flag);
+			}
+
+		}
+
+		private static final class Indirect extends AttributeReader {
+
+			Indirect(int attribute) {
+				super(attribute);
+			}
+
+			@Override
+			void read(DwarfRequestor requestor, DataSource data) {
+				int form = checkUInt(data.getUDATA());
+				AttributeReader indirect = create(attribute, form);
+
+				indirect.read(requestor, data);
 			}
 
 		}
@@ -314,22 +272,6 @@ public class DwarfScanner {
 
 		}
 
-		private static final class Indirect extends AttributeReader {
-
-			Indirect(int attribute) {
-				super(attribute);
-			}
-
-			@Override
-			void read(DwarfRequestor requestor, DataSource data) {
-				int form = checkUInt(data.getUDATA());
-				AttributeReader indirect = create(attribute, form, data);
-
-				indirect.read(requestor, data);
-			}
-
-		}
-
 		/**
 		 * This class allows us to parse abbreviations using unknown forms.
 		 * If the abbreviation is unused this poses no problem.
@@ -360,7 +302,7 @@ public class DwarfScanner {
 			throw new IllegalArgumentException("Not U4: " + value);
 		}
 
-		static AttributeReader create(int attribute, int form, DataSource data) {
+		static AttributeReader create(int attribute, int form) {
 			switch (form) {
 			case DwarfForm.DW_FORM_addr:
 				return new Address(attribute);
@@ -377,7 +319,7 @@ public class DwarfScanner {
 			case DwarfForm.DW_FORM_flag:
 				return new Flag(attribute, DataSource::getU1);
 			case DwarfForm.DW_FORM_flag_present:
-				return new Flag(attribute, constantAccessor(1));
+				return new Flag(attribute, data -> 1);
 
 			case DwarfForm.DW_FORM_data1:
 				return new Constant(attribute, DataSource::getU1);
@@ -391,9 +333,6 @@ public class DwarfScanner {
 				return new Constant(attribute, DataSource::getSDATA);
 			case DwarfForm.DW_FORM_udata:
 				return new Constant(attribute, DataSource::getUDATA);
-
-			case DwarfForm.DW_FORM_implicit_const:
-				return new Constant(attribute, constantAccessor(data.getSDATA()));
 
 			case DwarfForm.DW_FORM_string:
 				return new Str(attribute);
@@ -414,40 +353,14 @@ public class DwarfScanner {
 			case DwarfForm.DW_FORM_sec_offset:
 				return new Reference(attribute, DataSource::getOffset);
 
-			case DwarfForm.DW_FORM_addrx:
-				return new AddressIndex(attribute, DataSource::getUDATA);
-			case DwarfForm.DW_FORM_addrx1:
-				return new AddressIndex(attribute, DataSource::getU1);
-			case DwarfForm.DW_FORM_addrx2:
-				return new AddressIndex(attribute, DataSource::getU2);
-			case DwarfForm.DW_FORM_addrx3:
-				return new AddressIndex(attribute, DataSource::getU3);
-			case DwarfForm.DW_FORM_addrx4:
-				return new AddressIndex(attribute, DataSource::getU4);
-
 			case DwarfForm.DW_FORM_exprloc:
 				return new Expression(attribute, DataSource::getUDATA);
 
 			case DwarfForm.DW_FORM_indirect:
 				return new Indirect(attribute);
 
-			case DwarfForm.DW_FORM_strx:
-			case DwarfForm.DW_FORM_strx1:
-			case DwarfForm.DW_FORM_strx2:
-			case DwarfForm.DW_FORM_strx3:
-			case DwarfForm.DW_FORM_strx4:
-
-			case DwarfForm.DW_FORM_ref_sig8:
-			case DwarfForm.DW_FORM_ref_sup4:
-			case DwarfForm.DW_FORM_ref_sup8:
-
-			case DwarfForm.DW_FORM_strp_sup:
-			case DwarfForm.DW_FORM_data16:
-			case DwarfForm.DW_FORM_line_strp:
-			case DwarfForm.DW_FORM_loclistx:
-			case DwarfForm.DW_FORM_rnglistx:
-
 			case DwarfForm.DW_FORM_ref_addr:
+			case DwarfForm.DW_FORM_ref_sig8:
 			default:
 				return new Unknown(attribute, form);
 			}
@@ -463,6 +376,10 @@ public class DwarfScanner {
 		abstract void read(DwarfRequestor requestor, DataSource data);
 
 	}
+
+	public static final int VERSION_MAXIMUM = 4;
+
+	public static final int VERSION_MINIMUM = 2;
 
 	private static void scanTags(DwarfRequestor requestor, DataSource data, LongFunction<Abbreviation> abbreviations) {
 		Stack<Abbreviation> tagStack = new Stack<>();
@@ -579,7 +496,7 @@ public class DwarfScanner {
 
 			int version = unit.getU2();
 
-			if (version < 2 || version > 5) {
+			if (version < VERSION_MINIMUM || version > VERSION_MAXIMUM) {
 				throw new IllegalArgumentException("version=" + version);
 			}
 

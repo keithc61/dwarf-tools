@@ -22,8 +22,6 @@ public interface DwarfRequestor {
 
 	void acceptAddress(int attribute, long address);
 
-	void acceptAddressIndex(int attribute, long index);
-
 	void acceptBlock(int attribute, byte[] data);
 
 	void acceptConstant(int attribute, long value);
@@ -46,7 +44,6 @@ public interface DwarfRequestor {
 		@Override
 		public void enterCompilationUnit(long offset) {
 			return;
-
 		}
 
 		@Override
@@ -61,11 +58,6 @@ public interface DwarfRequestor {
 
 		@Override
 		public void endTag(int tag, boolean hasChildren) {
-			return;
-		}
-
-		@Override
-		public void acceptAddressIndex(int attribute, long index) {
 			return;
 		}
 

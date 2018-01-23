@@ -325,12 +325,6 @@ public class DwarfDumper {
 		}
 
 		@Override
-		public void acceptAddressIndex(int attribute, long index) {
-			beginAttribute(attribute);
-			System.out.printf("address index %d%n", index);
-		}
-
-		@Override
 		public void acceptBlock(int attribute, byte[] data) {
 			beginAttribute(attribute);
 			System.out.printf("block length %d%n", data.length);
