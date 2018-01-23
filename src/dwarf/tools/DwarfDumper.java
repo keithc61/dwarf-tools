@@ -339,43 +339,43 @@ public class DwarfDumper {
 		}
 
 		@Override
-		public void acceptAddress(int attribute, long address) {
+		public void acceptAddress(int attribute, int form, long address) {
 			beginAttribute(attribute);
 			System.out.printf("address 0x%x%n", address);
 		}
 
 		@Override
-		public void acceptBlock(int attribute, byte[] data) {
+		public void acceptBlock(int attribute, int form, byte[] data) {
 			beginAttribute(attribute);
 			System.out.printf("block length %d%n", data.length);
 		}
 
 		@Override
-		public void acceptConstant(int attribute, long value) {
+		public void acceptConstant(int attribute, int form, long value) {
 			beginAttribute(attribute);
 			System.out.printf("const %d%n", value);
 		}
 
 		@Override
-		public void acceptExpression(int attribute, byte[] expression) {
+		public void acceptExpression(int attribute, int form, byte[] expression) {
 			beginAttribute(attribute);
 			System.out.printf("expression length %d%n", expression.length);
 		}
 
 		@Override
-		public void acceptFlag(int attribute, boolean flag) {
+		public void acceptFlag(int attribute, int form, boolean flag) {
 			beginAttribute(attribute);
 			System.out.printf("flag %s%n", flag ? "Y" : "N");
 		}
 
 		@Override
-		public void acceptReference(int attribute, long offset) {
+		public void acceptReference(int attribute, int form, long offset) {
 			beginAttribute(attribute);
 			System.out.printf("ref 0x%x%n", offset);
 		}
 
 		@Override
-		public void acceptString(int attribute, String string) {
+		public void acceptString(int attribute, int form, String string) {
 			beginAttribute(attribute);
 			System.out.printf("string %s%n", string);
 		}

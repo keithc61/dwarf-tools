@@ -49,37 +49,37 @@ public class DwarfScanTest {
 		}
 
 		@Override
-		public void acceptAddress(int attribute, long address) {
+		public void acceptAddress(int attribute, int form, long address) {
 			attributeCount += 1;
 		}
 
 		@Override
-		public void acceptBlock(int attribute, byte[] data) {
+		public void acceptBlock(int attribute, int form, byte[] data) {
 			attributeCount += 1;
 		}
 
 		@Override
-		public void acceptConstant(int attribute, long value) {
+		public void acceptConstant(int attribute, int form, long value) {
 			attributeCount += 1;
 		}
 
 		@Override
-		public void acceptExpression(int attribute, byte[] expression) {
+		public void acceptExpression(int attribute, int form, byte[] expression) {
 			attributeCount += 1;
 		}
 
 		@Override
-		public void acceptFlag(int attribute, boolean flag) {
+		public void acceptFlag(int attribute, int form, boolean flag) {
 			attributeCount += 1;
 		}
 
 		@Override
-		public void acceptReference(int attribute, long offset) {
+		public void acceptReference(int attribute, int form, long offset) {
 			attributeCount += 1;
 		}
 
 		@Override
-		public void acceptString(int attribute, String string) {
+		public void acceptString(int attribute, int form, String string) {
 			attributeCount += 1;
 		}
 

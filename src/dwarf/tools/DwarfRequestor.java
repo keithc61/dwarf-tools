@@ -40,26 +40,21 @@ public interface DwarfRequestor {
 
 	void endTag(int tag, boolean hasChildren);
 
-	void acceptAddress(int attribute, long address);
+	void acceptAddress(int attribute, int form, long address);
 
-	void acceptBlock(int attribute, byte[] data);
+	void acceptBlock(int attribute, int form, byte[] data);
 
-	void acceptConstant(int attribute, long value);
+	void acceptConstant(int attribute, int form, long value);
 
-	void acceptFlag(int attribute, boolean flag);
+	void acceptExpression(int attribute, int form, byte[] expression);
 
-	void acceptReference(int attribute, long offset);
+	void acceptFlag(int attribute, int form, boolean flag);
 
-	void acceptString(int attribute, String string);
+	void acceptReference(int attribute, int form, long offset);
 
-	void acceptExpression(int attribute, byte[] expression);
+	void acceptString(int attribute, int form, String string);
 
 	DwarfRequestor NULL = new DwarfRequestor() {
-
-		@Override
-		public void acceptAddress(int attribute, long address) {
-			return;
-		}
 
 		@Override
 		public void enterCompilationUnit(long offset) {
@@ -82,32 +77,37 @@ public interface DwarfRequestor {
 		}
 
 		@Override
-		public void acceptBlock(int attribute, byte[] data) {
+		public void acceptAddress(int attribute, int form, long address) {
 			return;
 		}
 
 		@Override
-		public void acceptConstant(int attribute, long value) {
+		public void acceptBlock(int attribute, int form, byte[] data) {
 			return;
 		}
 
 		@Override
-		public void acceptFlag(int attribute, boolean flag) {
+		public void acceptConstant(int attribute, int form, long value) {
 			return;
 		}
 
 		@Override
-		public void acceptReference(int attribute, long offset) {
+		public void acceptExpression(int attribute, int form, byte[] expression) {
 			return;
 		}
 
 		@Override
-		public void acceptString(int attribute, String string) {
+		public void acceptFlag(int attribute, int form, boolean flag) {
 			return;
 		}
 
 		@Override
-		public void acceptExpression(int attribute, byte[] expression) {
+		public void acceptReference(int attribute, int form, long offset) {
+			return;
+		}
+
+		@Override
+		public void acceptString(int attribute, int form, String string) {
 			return;
 		}
 

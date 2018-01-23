@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Stack;
 import java.util.function.Function;
 import java.util.function.LongFunction;
-import java.util.function.ToLongFunction;
 
 import org.eclipse.cdt.utils.elf.Elf;
 
@@ -148,158 +147,224 @@ public class DwarfScanner {
 
 		private static final class Address extends AttributeReader {
 
-			Address(int attribute) {
-				super(attribute);
+			Address(int attribute, int form) {
+				super(attribute, form);
 			}
 
 			@Override
 			void read(DwarfRequestor requestor, DataSource data) {
 				long address = data.getAddress();
 
-				requestor.acceptAddress(attribute, address);
+				requestor.acceptAddress(attribute, form, address);
 			}
 
 		}
 
-		private static class Block extends AttributeReader {
+		private static final class Block extends AttributeReader {
 
-			private final ToLongFunction<DataSource> lengthAccessor;
-
-			Block(int attribute, ToLongFunction<DataSource> lengthAccessor) {
-				super(attribute);
-				this.lengthAccessor = lengthAccessor;
+			Block(int attribute, int form) {
+				super(attribute, form);
 			}
 
 			@Override
 			final void read(DwarfRequestor requestor, DataSource data) {
-				int length = checkUInt(lengthAccessor.applyAsLong(data));
-				byte[] block = new byte[length];
+				long length;
+
+				switch (form) {
+				case DwarfForm.DW_FORM_block:
+					length = data.getUDATA();
+					break;
+				case DwarfForm.DW_FORM_block1:
+					length = data.getU1();
+					break;
+				case DwarfForm.DW_FORM_block2:
+					length = data.getU2();
+					break;
+				case DwarfForm.DW_FORM_block4:
+					length = data.getU4();
+					break;
+				default:
+					throw unexpectedForm();
+				}
+
+				byte[] block = new byte[checkUInt(length)];
 
 				data.getBlock(block);
 
-				requestor.acceptBlock(attribute, block);
+				requestor.acceptBlock(attribute, form, block);
 			}
 
 		}
 
 		private static final class Constant extends AttributeReader {
 
-			private final ToLongFunction<DataSource> valueAccessor;
-
-			Constant(int attribute, ToLongFunction<DataSource> valueAccessor) {
-				super(attribute);
-				this.valueAccessor = valueAccessor;
+			Constant(int attribute, int form) {
+				super(attribute, form);
 			}
 
 			@Override
 			void read(DwarfRequestor requestor, DataSource data) {
-				long value = valueAccessor.applyAsLong(data);
+				long value;
 
-				requestor.acceptConstant(attribute, value);
+				switch (form) {
+				case DwarfForm.DW_FORM_data1:
+					value = data.getU1();
+					break;
+				case DwarfForm.DW_FORM_data2:
+					value = data.getU2();
+					break;
+				case DwarfForm.DW_FORM_data4:
+					value = data.getU4();
+					break;
+				case DwarfForm.DW_FORM_data8:
+					value = data.getU8();
+					break;
+				case DwarfForm.DW_FORM_sdata:
+					value = data.getSDATA();
+					break;
+				case DwarfForm.DW_FORM_udata:
+					value = data.getUDATA();
+					break;
+				default:
+					throw unexpectedForm();
+				}
+
+				requestor.acceptConstant(attribute, form, value);
 			}
 
 		}
 
-		private static class Expression extends AttributeReader {
+		private static final class Expression extends AttributeReader {
 
-			private final ToLongFunction<DataSource> lengthAccessor;
-
-			Expression(int attribute, ToLongFunction<DataSource> lengthAccessor) {
-				super(attribute);
-				this.lengthAccessor = lengthAccessor;
+			Expression(int attribute, int form) {
+				super(attribute, form);
 			}
 
 			@Override
 			final void read(DwarfRequestor requestor, DataSource data) {
-				int length = checkUInt(lengthAccessor.applyAsLong(data));
-				byte[] expression = new byte[length];
+				long length;
+
+				switch (form) {
+				case DwarfForm.DW_FORM_exprloc:
+					length = data.getUDATA();
+					break;
+				default:
+					throw unexpectedForm();
+				}
+
+				byte[] expression = new byte[checkUInt(length)];
 
 				data.getBlock(expression);
 
-				requestor.acceptExpression(attribute, expression);
+				requestor.acceptExpression(attribute, form, expression);
 			}
 
 		}
 
 		private static final class Flag extends AttributeReader {
 
-			private final ToLongFunction<DataSource> flagAccessor;
-
-			Flag(int attribute, ToLongFunction<DataSource> flagAccessor) {
-				super(attribute);
-				this.flagAccessor = flagAccessor;
+			Flag(int attribute, int form) {
+				super(attribute, form);
 			}
 
 			@Override
 			void read(DwarfRequestor requestor, DataSource data) {
-				boolean flag = flagAccessor.applyAsLong(data) != 0;
+				boolean flag;
 
-				requestor.acceptFlag(attribute, flag);
+				switch (form) {
+				case DwarfForm.DW_FORM_flag:
+					flag = data.getU1() != 0;
+					break;
+				case DwarfForm.DW_FORM_flag_present:
+					flag = true;
+					break;
+				default:
+					throw unexpectedForm();
+				}
+
+				requestor.acceptFlag(attribute, form, flag);
 			}
 
 		}
 
 		private static final class Indirect extends AttributeReader {
 
-			Indirect(int attribute) {
-				super(attribute);
+			Indirect(int attribute, int form) {
+				super(attribute, form);
 			}
 
 			@Override
 			void read(DwarfRequestor requestor, DataSource data) {
-				int form = checkUInt(data.getUDATA());
-				AttributeReader indirect = create(attribute, form);
+				int actualForm = checkUInt(data.getUDATA());
+				AttributeReader actualReader = create(attribute, actualForm);
 
-				indirect.read(requestor, data);
+				actualReader.read(requestor, data);
 			}
 
 		}
 
 		private static final class Reference extends AttributeReader {
 
-			private final ToLongFunction<DataSource> offsetAccessor;
-
-			Reference(int attribute, ToLongFunction<DataSource> offsetAccessor) {
-				super(attribute);
-				this.offsetAccessor = offsetAccessor;
+			Reference(int attribute, int form) {
+				super(attribute, form);
 			}
 
 			@Override
 			void read(DwarfRequestor requestor, DataSource data) {
-				long offset = offsetAccessor.applyAsLong(data);
+				long offset;
 
-				requestor.acceptReference(attribute, offset);
+				switch (form) {
+				case DwarfForm.DW_FORM_ref1:
+					offset = data.getU1();
+					break;
+				case DwarfForm.DW_FORM_ref2:
+					offset = data.getU2();
+					break;
+				case DwarfForm.DW_FORM_ref4:
+					offset = data.getU4();
+					break;
+				case DwarfForm.DW_FORM_ref8:
+				case DwarfForm.DW_FORM_ref_sig8:
+					offset = data.getU8();
+					break;
+				case DwarfForm.DW_FORM_ref_udata:
+					offset = data.getUDATA();
+					break;
+				case DwarfForm.DW_FORM_ref_addr:
+				case DwarfForm.DW_FORM_sec_offset:
+					offset = data.getOffset();
+					break;
+				default:
+					throw unexpectedForm();
+				}
+
+				requestor.acceptReference(attribute, form, offset);
 			}
 
 		}
 
 		private static final class Str extends AttributeReader {
 
-			Str(int attribute) {
-				super(attribute);
+			Str(int attribute, int form) {
+				super(attribute, form);
 			}
 
 			@Override
 			void read(DwarfRequestor requestor, DataSource data) {
-				String string = data.getString();
+				String string;
 
-				requestor.acceptString(attribute, string);
-			}
+				switch (form) {
+				case DwarfForm.DW_FORM_string:
+					string = data.getString();
+					break;
+				case DwarfForm.DW_FORM_strp:
+					string = data.lookupString(data.getOffset());
+					break;
+				default:
+					throw unexpectedForm();
+				}
 
-		}
-
-		private static final class StrRef extends AttributeReader {
-
-			StrRef(int attribute) {
-				super(attribute);
-			}
-
-			@Override
-			void read(DwarfRequestor requestor, DataSource data) {
-				long offset = data.getOffset();
-				String string = data.lookupString(offset);
-
-				requestor.acceptString(attribute, string);
+				requestor.acceptString(attribute, form, string);
 			}
 
 		}
@@ -312,11 +377,8 @@ public class DwarfScanner {
 		 */
 		private static final class Unknown extends AttributeReader {
 
-			private final int form;
-
 			Unknown(int attribute, int form) {
-				super(attribute);
-				this.form = form;
+				super(attribute, form);
 			}
 
 			@Override
@@ -337,62 +399,46 @@ public class DwarfScanner {
 		static AttributeReader create(int attribute, int form) {
 			switch (form) {
 			case DwarfForm.DW_FORM_addr:
-				return new Address(attribute);
+				return new Address(attribute, form);
 
 			case DwarfForm.DW_FORM_block:
-				return new Block(attribute, DataSource::getUDATA);
 			case DwarfForm.DW_FORM_block1:
-				return new Block(attribute, DataSource::getU1);
 			case DwarfForm.DW_FORM_block2:
-				return new Block(attribute, DataSource::getU2);
 			case DwarfForm.DW_FORM_block4:
-				return new Block(attribute, DataSource::getU4);
+				return new Block(attribute, form);
 
 			case DwarfForm.DW_FORM_flag:
-				return new Flag(attribute, DataSource::getU1);
 			case DwarfForm.DW_FORM_flag_present:
-				return new Flag(attribute, data -> 1);
+				return new Flag(attribute, form);
 
 			case DwarfForm.DW_FORM_data1:
-				return new Constant(attribute, DataSource::getU1);
 			case DwarfForm.DW_FORM_data2:
-				return new Constant(attribute, DataSource::getU2);
 			case DwarfForm.DW_FORM_data4:
-				return new Constant(attribute, DataSource::getU4);
 			case DwarfForm.DW_FORM_data8:
-				return new Constant(attribute, DataSource::getU8);
 			case DwarfForm.DW_FORM_sdata:
-				return new Constant(attribute, DataSource::getSDATA);
 			case DwarfForm.DW_FORM_udata:
-				return new Constant(attribute, DataSource::getUDATA);
+				return new Constant(attribute, form);
 
 			case DwarfForm.DW_FORM_string:
-				return new Str(attribute);
 			case DwarfForm.DW_FORM_strp:
-				return new StrRef(attribute);
+				return new Str(attribute, form);
 
 			case DwarfForm.DW_FORM_ref1:
-				return new Reference(attribute, DataSource::getU1);
 			case DwarfForm.DW_FORM_ref2:
-				return new Reference(attribute, DataSource::getU2);
 			case DwarfForm.DW_FORM_ref4:
-				return new Reference(attribute, DataSource::getU4);
 			case DwarfForm.DW_FORM_ref8:
-				return new Reference(attribute, DataSource::getU8);
+			case DwarfForm.DW_FORM_ref_sig8:
 			case DwarfForm.DW_FORM_ref_udata:
-				return new Reference(attribute, DataSource::getUDATA);
-
 			case DwarfForm.DW_FORM_sec_offset:
-				return new Reference(attribute, DataSource::getOffset);
+			case DwarfForm.DW_FORM_ref_addr:
+				return new Reference(attribute, form);
 
 			case DwarfForm.DW_FORM_exprloc:
-				return new Expression(attribute, DataSource::getUDATA);
+				return new Expression(attribute, form);
 
 			case DwarfForm.DW_FORM_indirect:
-				return new Indirect(attribute);
+				return new Indirect(attribute, form);
 
-			case DwarfForm.DW_FORM_ref_addr:
-			case DwarfForm.DW_FORM_ref_sig8:
 			default:
 				return new Unknown(attribute, form);
 			}
@@ -400,12 +446,19 @@ public class DwarfScanner {
 
 		final int attribute;
 
-		AttributeReader(int attribute) {
+		final int form;
+
+		AttributeReader(int attribute, int form) {
 			super();
 			this.attribute = attribute;
+			this.form = form;
 		}
 
 		abstract void read(DwarfRequestor requestor, DataSource data);
+
+		final IllegalStateException unexpectedForm() {
+			return new IllegalStateException("form=" + form);
+		}
 
 	}
 
