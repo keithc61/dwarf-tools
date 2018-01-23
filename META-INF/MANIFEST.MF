@@ -4,5 +4,5 @@ Bundle-Name: Dwarf-test
 Bundle-SymbolicName: dwarf-test
 Bundle-Version: 1.0.0.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-1.8
-Require-Bundle: org.eclipse.cdt.core;bundle-version="[6.3.1,7.0.0)",
+Require-Bundle: org.eclipse.cdt.core;bundle-version="[6.3.0,7.0.0)",
  org.eclipse.core.runtime;bundle-version="[3.13.0,4.0.0)"
