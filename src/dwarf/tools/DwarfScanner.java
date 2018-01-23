@@ -39,24 +39,36 @@ import org.eclipse.cdt.utils.elf.Elf;
 
 public class DwarfScanner {
 
-	private static class Abbreviation {
+	private static final class Abbreviation {
 
 		private static Abbreviation find(Abbreviation[] abbreviations, long code) {
 			Abbreviation abbreviation = null;
+			int lo = 0;
+			int hi = abbreviations.length;
+			int mid;
 
-			if (0 < code && code <= abbreviations.length) {
-				abbreviation = abbreviations[(int) code - 1];
+			if (lo < code && code <= hi) {
+				// if codes are contiguous starting at 1,
+				// we'll find it on the first test
+				mid = (int) code - 1;
+			} else {
+				mid = hi / 2;
+			}
 
-				if (abbreviation.code != code) {
-					abbreviation = null;
+			// do a binary search
+			for (; lo < hi; mid = (lo + hi) >>> 1) {
+				abbreviation = abbreviations[mid];
+
+				if (code == abbreviation.code) {
+					return abbreviation;
+				} else if (code > abbreviation.code) {
+					lo = mid + 1;
+				} else {
+					hi = mid;
 				}
 			}
 
-			if (abbreviation == null) {
-				// FIXME find matching code
-			}
-
-			return abbreviation;
+			return null;
 		}
 
 		static LongFunction<Abbreviation> readFrom(DataSource data) {
