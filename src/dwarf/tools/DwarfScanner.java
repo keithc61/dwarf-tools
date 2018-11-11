@@ -23,18 +23,21 @@ package dwarf.tools;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
 import java.util.function.Function;
 import java.util.function.LongFunction;
-
-import org.eclipse.cdt.utils.elf.Elf;
 
 public class DwarfScanner {
 
@@ -466,6 +469,122 @@ public class DwarfScanner {
 
 	public static final int VERSION_MINIMUM = 2;
 
+	private static String getName(ByteBuffer nameData, int sh_name) {
+		if (0 <= sh_name && sh_name < nameData.limit()) {
+			StringBuilder buffer = new StringBuilder();
+
+			for (int index = sh_name; index < nameData.limit(); ++index) {
+				byte ch = nameData.get(index);
+
+				if (ch == 0) {
+					break;
+				}
+
+				buffer.append((char) (ch & 0xFF));
+			}
+
+			return buffer.toString();
+		} else {
+			return "";
+		}
+	}
+
+	private static Map<String, ByteBuffer> getSections(FileChannel channel, Set<String> wantedSections)
+			throws IOException {
+		final Map<String, ByteBuffer> sectionMap = new HashMap<>();
+		final ByteBuffer buffer = channel.map(MapMode.READ_ONLY, 0, 64);
+		final boolean format32;
+		final ByteOrder order;
+		final long e_shoff;
+		final int e_shentsize;
+		final int e_shnum;
+		final int e_shstrndx;
+
+		// verify the magic number is 0x7F "ELF"
+		if (buffer.getInt(0) != 0x7F454C46) {
+			throw new IOException("Bad magic number");
+		}
+
+		switch (buffer.get(4)) {
+		case 1:
+			format32 = true;
+			break;
+		case 2:
+			format32 = false;
+			break;
+		default:
+			throw new IOException("Bad format class");
+		}
+
+		switch (buffer.get(5)) {
+		case 1:
+			order = ByteOrder.LITTLE_ENDIAN;
+			break;
+		case 2:
+			order = ByteOrder.BIG_ENDIAN;
+			break;
+		default:
+			throw new IOException("Bad endian flag");
+		}
+
+		buffer.order(order);
+
+		if (format32) {
+			e_shoff = buffer.getInt(0x20);
+			e_shentsize = buffer.getShort(0x2E);
+			e_shnum = buffer.getShort(0x30);
+			e_shstrndx = buffer.getShort(0x32);
+		} else {
+			e_shoff = buffer.getLong(0x28);
+			e_shentsize = buffer.getShort(0x3A);
+			e_shnum = buffer.getShort(0x3C);
+			e_shstrndx = buffer.getShort(0x3E);
+		}
+
+		final ByteBuffer sectDescs = channel.map(MapMode.READ_ONLY, e_shoff, e_shnum * (long) e_shentsize).order(order);
+		final ByteBuffer sectionNames;
+
+		{
+			final int sectStart = e_shstrndx * e_shentsize;
+			final long sectOffset;
+			final long sectSize;
+
+			if (format32) {
+				sectOffset = sectDescs.getInt(sectStart + 0x10);
+				sectSize = sectDescs.getInt(sectStart + 0x14);
+			} else {
+				sectOffset = sectDescs.getLong(sectStart + 0x18);
+				sectSize = sectDescs.getLong(sectStart + 0x20);
+			}
+
+			sectionNames = channel.map(MapMode.READ_ONLY, sectOffset, sectSize);
+		}
+
+		for (int section = 0, sectStart = 0; section < e_shnum; section += 1, sectStart += e_shentsize) {
+			final int nameIndex = sectDescs.getInt(sectStart + 0x0);
+			final String name = getName(sectionNames, nameIndex);
+
+			if (wantedSections.contains(name)) {
+				final long sectOffset;
+				final long sectSize;
+
+				if (format32) {
+					sectOffset = sectDescs.getInt(sectStart + 0x10);
+					sectSize = sectDescs.getInt(sectStart + 0x14);
+				} else {
+					sectOffset = sectDescs.getLong(sectStart + 0x18);
+					sectSize = sectDescs.getLong(sectStart + 0x20);
+				}
+
+				final ByteBuffer sectionData = channel.map(MapMode.READ_ONLY, sectOffset, sectSize).order(order);
+
+				sectionMap.put(name, sectionData);
+			}
+		}
+
+		return sectionMap;
+	}
+
 	private static void scanTags(DwarfRequestor requestor, DataSource data, LongFunction<Abbreviation> abbreviations) {
 		Stack<Abbreviation> tagStack = new Stack<>();
 
@@ -517,37 +636,32 @@ public class DwarfScanner {
 		ByteBuffer info = empty;
 		ByteBuffer strings = empty;
 
-		Elf object = new Elf(fileName);
+		try (FileChannel channel = FileChannel.open(Paths.get(fileName))) {
+			final Set<String> wantedSections = new HashSet<>();
 
-		try {
-			Elf.ELFhdr header = object.getELFhdr();
-			ByteOrder order;
+			wantedSections.add(".debug_abbrev");
+			wantedSections.add(".debug_info");
+			wantedSections.add(".debug_str");
 
-			if (header.e_ident[Elf.ELFhdr.EI_DATA] == Elf.ELFhdr.ELFDATA2LSB) {
-				order = ByteOrder.LITTLE_ENDIAN;
-			} else {
-				order = ByteOrder.BIG_ENDIAN;
-			}
+			Map<String, ByteBuffer> sectionMap = getSections(channel, wantedSections);
 
-			for (Elf.Section section : object.getSections()) {
-				String name = section.toString();
+			for (Map.Entry<String, ByteBuffer> entry : sectionMap.entrySet()) {
+				String name = entry.getKey();
 
 				switch (name) {
 				case ".debug_abbrev":
-					abbrev = section.mapSectionData().order(order);
+					abbrev = entry.getValue();
 					break;
 				case ".debug_info":
-					info = section.mapSectionData().order(order);
+					info = entry.getValue();
 					break;
 				case ".debug_str":
-					strings = section.mapSectionData().order(order);
+					strings = entry.getValue();
 					break;
 				default:
 					break;
 				}
 			}
-		} finally {
-			object.dispose();
 		}
 
 		Map<Long, String> stringCache = new HashMap<>();
