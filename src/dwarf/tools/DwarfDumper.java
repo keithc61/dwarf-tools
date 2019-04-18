@@ -206,8 +206,65 @@ public class DwarfDumper {
 			}
 		}
 
-		private static void beginAttribute(int attribute) {
-			System.out.printf("  DW_AT_%-12s ", attributeName(attribute));
+		private static void beginAttribute(int attribute, int form) {
+			System.out.printf("  AT_%-12s FORM_%s ", attributeName(attribute), formName(form));
+		}
+
+		private static String formName(int form) {
+			switch (form) {
+			case DwarfForm.DW_FORM_addr:
+				return "addr";
+			case DwarfForm.DW_FORM_block2:
+				return "block2";
+			case DwarfForm.DW_FORM_block4:
+				return "block4";
+			case DwarfForm.DW_FORM_data2:
+				return "data2";
+			case DwarfForm.DW_FORM_data4:
+				return "data4";
+			case DwarfForm.DW_FORM_data8:
+				return "data8";
+			case DwarfForm.DW_FORM_string:
+				return "string";
+			case DwarfForm.DW_FORM_block:
+				return "block";
+			case DwarfForm.DW_FORM_block1:
+				return "block1";
+			case DwarfForm.DW_FORM_data1:
+				return "data1";
+			case DwarfForm.DW_FORM_flag:
+				return "flag";
+			case DwarfForm.DW_FORM_sdata:
+				return "sdata";
+			case DwarfForm.DW_FORM_strp:
+				return "strp";
+			case DwarfForm.DW_FORM_udata:
+				return "udata";
+			case DwarfForm.DW_FORM_ref_addr:
+				return "ref_addr";
+			case DwarfForm.DW_FORM_ref1:
+				return "ref1";
+			case DwarfForm.DW_FORM_ref2:
+				return "ref2";
+			case DwarfForm.DW_FORM_ref4:
+				return "ref4";
+			case DwarfForm.DW_FORM_ref8:
+				return "ref8";
+			case DwarfForm.DW_FORM_ref_udata:
+				return "ref_udata";
+			case DwarfForm.DW_FORM_indirect:
+				return "indirect";
+			case DwarfForm.DW_FORM_sec_offset:
+				return "sec_offset";
+			case DwarfForm.DW_FORM_exprloc:
+				return "exprloc";
+			case DwarfForm.DW_FORM_flag_present:
+				return "flag_present";
+			case DwarfForm.DW_FORM_ref_sig8:
+				return "ref_sig8";
+			default:
+				return Integer.toString(form);
+			}
 		}
 
 		private static String tagName(int tag) {
@@ -340,49 +397,49 @@ public class DwarfDumper {
 
 		@Override
 		public void acceptAddress(int attribute, int form, long address) {
-			beginAttribute(attribute);
+			beginAttribute(attribute, form);
 			System.out.printf("address 0x%x%n", address);
 		}
 
 		@Override
 		public void acceptBlock(int attribute, int form, byte[] data) {
-			beginAttribute(attribute);
+			beginAttribute(attribute, form);
 			System.out.printf("block length %d%n", data.length);
 		}
 
 		@Override
 		public void acceptConstant(int attribute, int form, long value) {
-			beginAttribute(attribute);
+			beginAttribute(attribute, form);
 			System.out.printf("const %d%n", value);
 		}
 
 		@Override
 		public void acceptExpression(int attribute, int form, byte[] expression) {
-			beginAttribute(attribute);
+			beginAttribute(attribute, form);
 			System.out.printf("expression length %d%n", expression.length);
 		}
 
 		@Override
 		public void acceptFlag(int attribute, int form, boolean flag) {
-			beginAttribute(attribute);
+			beginAttribute(attribute, form);
 			System.out.printf("flag %s%n", flag ? "Y" : "N");
 		}
 
 		@Override
 		public void acceptReference(int attribute, int form, long offset) {
-			beginAttribute(attribute);
+			beginAttribute(attribute, form);
 			System.out.printf("ref 0x%x%n", offset);
 		}
 
 		@Override
 		public void acceptString(int attribute, int form, String string) {
-			beginAttribute(attribute);
+			beginAttribute(attribute, form);
 			System.out.printf("string %s%n", string);
 		}
 
 		@Override
 		public void beginTag(int tag, long offset, boolean hasChildren) {
-			System.out.printf("<%x><%x> DW_TAG_%s children=%s%n", //
+			System.out.printf("<%x><%x> TAG_%s children=%s%n", //
 					tagDepth, offset, tagName(tag), hasChildren ? "Y" : "N");
 			tagDepth += 1;
 		}
@@ -390,7 +447,7 @@ public class DwarfDumper {
 		@Override
 		public void endTag(int tag, boolean hasChildren) {
 			tagDepth -= 1;
-			System.out.printf("<%x><<<< DW_TAG_%s children=%s%n", //
+			System.out.printf("<%x><<<< TAG_%s children=%s%n", //
 					tagDepth, tagName(tag), hasChildren ? "Y" : "N");
 		}
 
